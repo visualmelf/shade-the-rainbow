@@ -1,0 +1,1304 @@
+/****************** For SlideBar Parameter ******************/
+var mouseFlag = 0;// 0 : moving ; 1: stop
+var currentLight = 0;
+var lightNum=1;
+
+//light section parameters
+var mouseXY = [];
+mouseXY[0] = [0.3, -0.3];     //default light
+
+var lightsPosition = 1;
+var lightsOnly = 0;
+var lightColor = [];
+var baseColor = [];
+var lightIntensity = [];
+var pointLightDis = [];
+var pointLightDecay = [];
+var showDiffuse = [];
+var showSpec = [];  
+
+lightColor =[1.0, 1.0 ,1.0];
+baseColor =[1.0, 1.0 ,1.0];
+lightIntensity[0] = 1.0;
+pointLightDis[0] = 0.5;
+pointLightDecay[0] = 0.0;
+showDiffuse[0] = 1;
+showSpec[0] = 1; 
+
+//style section parameters
+
+var styleBright,
+    styleDark;
+
+//highlight parameters
+var highlightA,
+    highlightB;
+//Diffuse Alpha parameters
+var alphaR;
+var alphaG;
+var alphaB;
+
+//refraction parameters
+var logIOR;//[-1, 1]
+var BGdis;
+
+//reflection parameters
+var FGdis;
+
+var reflMap;//1: plane; 2:hemisphere
+
+var FGshiftX;
+var FGshiftY;
+var FGscaleX;
+var FGscaleY;
+
+
+//Fresnel parameters
+var fresnelIntensity;
+var fresnelB; //cos = 0.95
+var fresnelC; //cos = 0.7
+var checkFresnel;
+
+// Height Field Light parameters
+var hLightDistance;
+var hLightIntensity;
+var hLightBack;
+var useEnvMap;
+
+function initParameters(){
+    lightColor =[0.75, 0.40, 0.15];
+    baseColor = [0.0, 0.1, 0.0];
+    lightIntensity[0] = 1.0;
+    pointLightDis[0] = 0.5;
+    pointLightDecay[0] = 0.0;
+    showDiffuse[0] = 1;
+    showSpec[0] = 1; 
+
+    //style section parameters
+    styleBright = 0;
+    styleDark = 1;
+
+    //highlight parameters
+    highlightA = 0.5;
+    highlightB = 0.25;
+
+    //Diffuse Alpha parameters
+    alphaR = 1;
+    alphaG = 1;
+    alphaB = 1;
+    
+    //refraction parameters
+    logIOR = 0.25;//[-1, 1]
+    BGdis = 0.6;
+    
+    //reflection parameters
+    FGdis = 0.2;
+    reflMap = 1;//1: plane; 2:hemisphere
+    FGshiftX = 0;
+    FGshiftY = 0;
+    FGscaleX = 0.5;
+    FGscaleY = 0.5;
+    
+    //Fresnel parameters
+    fresnelIntensity = 0;
+    fresnelB = 0.3; //cos = 0.95
+    fresnelC = 0.6; //cos = 0.7
+    checkFresnel = 0;
+
+    // Height Light parameters
+    hLightDistance = 1.0;
+    hLightIntensity = 1.0;
+    hLightBack = 0.05;
+    useEnvMap = 0;
+}
+
+
+
+
+
+//Locs
+
+var currentLightLoc;
+var lightNumLoc;
+var mouseLoc;
+
+var lightsOnlyLoc;
+var lightColorLoc;
+var baseColorLoc;
+var lightIntensityLoc;
+var pointLightDisLoc;
+var pointLightDecayLoc;
+
+var showDiffuseLoc;
+var showSpecLoc;
+
+var styleBrightLoc, styleDarkLoc;
+var highlightALoc, highlightBLoc;
+var alphaRLoc, alphaGLoc, alphaBLoc;
+var logIORLoc, BGdisLoc;
+var FGdisLoc;
+var reflMapLoc;
+var FGshiftXLoc, FGshiftYLoc, FGscaleXLoc, FGscaleXLoc;
+
+var fresnelIntensityLoc;
+var fresnelBLoc, fresnelCLoc;
+var checkFresnelLoc; 
+
+var hLightDistanceLoc, hLightIntensityLoc, hLightBackLoc;
+var useEnvMapLoc;
+
+/****************** For Basic shader ******************/
+
+var gl;
+var points = [];
+var colors = [];
+var normals = [];
+var texCoords = [];
+
+var numVertices = 36;
+
+var color0Loc;
+var color1Loc;
+
+var darkTexture, darkImage;
+var lightTexture, lightImage;
+var normalTexture, normalImage;
+var reflectTexture, reflectImage;
+var refractTexture, refractImage;
+var alphaTexture, alphaImage;
+var heightFieldTexture, heightFieldImage;
+var envLightTexture, envLightImage;
+var capturer = null;
+
+window.onload = function init()
+{
+    var canvas = document.getElementById( "gl-canvas" );
+    
+    gl = WebGLUtils.setupWebGL( canvas );
+    if ( !gl ) { alert( "WebGL isn't available" ); }
+
+    
+    var context = canvas.getContext('2d');
+    
+
+    /***************/
+
+    colorCube();
+
+    /////////////////  Configure WebGL  ////////////////////////
+
+    gl.viewport( 0, 0, canvas.width, canvas.height );
+    gl.clearColor( 0.05, 0.05, 0.05, 1.0 );
+
+    gl.enable( gl.DEPTH_TEST );
+    
+    //////////////////  Load shaders and initialize attribute buffers  /////////////////
+    
+    var program = initShaders( gl, "vertex-shader", "fragment-shader" );
+    gl.useProgram( program );
+    
+    /* Vertex colors
+    // Load the data into the GPU   
+    var cBuffer = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, cBuffer );
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(colors), gl.STATIC_DRAW );
+
+    // Associate out shader variables with our data buffer
+    var vColor = gl.getAttribLocation( program, "vColor" );
+    gl.vertexAttribPointer( vColor, 4, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vColor );
+    */
+
+
+    // Vertex positions
+    // Load the data into the GPU
+    var vBuffer = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer);
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(points), gl.STATIC_DRAW )
+
+    // Associate out shader variables with our data buffer
+    var vPosition = gl.getAttribLocation( program, "vPosition" );
+    gl.vertexAttribPointer( vPosition, 4, gl.FLOAT, false, 0, 0 ); 
+    gl.enableVertexAttribArray( vPosition );
+
+
+    // Vertex normals
+    // Load the data into the GPU
+    var nBuffer = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, nBuffer);
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(normals), gl.STATIC_DRAW);
+
+    // Associate out shader variables with our data buffer
+    var vNormal = gl.getAttribLocation( program, "vNormal" );
+    gl.vertexAttribPointer( vNormal, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vNormal );
+
+
+    // Vertex texture coordinates
+    // Load the data into the GPU
+    var tBuffer = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, tBuffer);
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(texCoords), gl.STATIC_DRAW);
+
+    // Associate out shader variables with our data buffer
+    var vTex = gl.getAttribLocation( program, "texcoord");
+    gl.vertexAttribPointer( vTex, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray( vTex );
+
+
+    initTextures();
+
+    normalImage.src = image3.src;
+    lightImage.src = image2.src;
+    darkImage.src = image1.src;
+    refractImage.src = image5.src;
+    reflectImage.src = image4.src;
+    alphaImage.src = image6.src;
+    heightFieldImage.src = image7.src;
+    envLightImage.src = image8.src;
+
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, normalTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerNormal"), 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, lightTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerColor1"), 1);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, darkTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerColor0"), 2);
+
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, refractTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerBackground"), 3);
+
+    gl.activeTexture(gl.TEXTURE4); 
+    gl.bindTexture(gl.TEXTURE_2D, reflectTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerForeground"), 4);
+
+    gl.activeTexture(gl.TEXTURE5); 
+    gl.bindTexture(gl.TEXTURE_2D, alphaTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerAlpha"), 5);
+
+    gl.activeTexture(gl.TEXTURE6); 
+    gl.bindTexture(gl.TEXTURE_2D, heightFieldTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerHeight"), 6);
+
+    gl.activeTexture(gl.TEXTURE7); 
+    gl.bindTexture(gl.TEXTURE_2D, envLightTexture);
+    gl.uniform1i(gl.getUniformLocation(program, "uSamplerEnv"), 7);
+
+    currentLightLoc = gl.getUniformLocation (program, "currentLight");
+    lightNumLoc = gl.getUniformLocation (program, "lightNum");
+    mouseLoc = gl.getUniformLocation( program, "mouseXY");
+    
+    lightsOnlyLoc = gl.getUniformLocation (program, "lightsOnly");
+
+    
+    lightColorLoc = gl.getUniformLocation (program, "lightColor");
+    baseColorLoc = gl.getUniformLocation (program, "baseColor");
+    lightIntensityLoc = gl.getUniformLocation (program, "lightIntensity");
+    showDiffuseLoc = gl.getUniformLocation( program, "showDiffuse");
+    showSpecLoc = gl.getUniformLocation( program, "showSpec");
+    pointLightDisLoc = gl.getUniformLocation( program, "pointLightDis");
+    pointLightDecayLoc = gl.getUniformLocation( program, "pointLightDecay");
+            
+
+    styleBrightLoc = gl.getUniformLocation( program, "styleBright");
+    styleDarkLoc = gl.getUniformLocation( program, "styleDark");
+    highlightALoc = gl.getUniformLocation( program, "highlightA");
+    highlightBLoc = gl.getUniformLocation( program, "highlightB");
+    alphaRLoc = gl.getUniformLocation( program, "alphaR");
+    alphaGLoc = gl.getUniformLocation( program, "alphaG");
+    alphaBLoc = gl.getUniformLocation( program, "alphaB");
+    logIORLoc = gl.getUniformLocation( program, "logIOR");
+    BGdisLoc = gl.getUniformLocation( program, "BGdis");
+    FGdisLoc = gl.getUniformLocation( program, "FGdis");
+    reflMapLoc = gl.getUniformLocation ( program, "reflMap");
+    FGshiftXLoc = gl.getUniformLocation( program, "FGshiftX");
+    FGshiftYLoc = gl.getUniformLocation( program, "FGshiftY");
+    FGscaleXLoc = gl.getUniformLocation( program, "FGscaleX");
+    FGscaleYLoc = gl.getUniformLocation( program, "FGscaleY");
+
+    fresnelIntensityLoc = gl.getUniformLocation ( program, "fresnelIntensity");
+    fresnelBLoc = gl.getUniformLocation( program, "fresnelB");
+    fresnelCLoc = gl.getUniformLocation( program, "fresnelC");
+    checkFresnelLoc = gl.getUniformLocation( program, "checkFresnel");
+
+    hLightDistanceLoc = gl.getUniformLocation( program, "hLightDistance");
+    hLightIntensityLoc = gl.getUniformLocation( program, "hLightIntensity");
+    hLightBackLoc = gl.getUniformLocation( program, "hLightBack");
+    useEnvMapLoc = gl.getUniformLocation( program, "useEnvMap");
+
+	// Create a capturer that exports PNG images in a TAR file
+
+	capturer = new CCapture( {
+				verbose: false,
+				display: true,
+				framerate: 60,
+				quality: 100,
+				format: 'png'
+			} );
+
+
+    var startBtn = $('#btn_Start');
+        startBtn.click(function() {
+            capturer.start();
+    });
+
+    var stopBtn = $('#btn_Stop');
+        stopBtn.click(function() {
+		    capturer.stop();
+		    capturer.save();
+    });
+
+    render();
+};
+
+function initTextures() {
+    
+
+    normalTexture = gl.createTexture();
+    normalImage = new Image();
+    normalImage.onload = function() { handleTextureLoaded(normalImage, normalTexture); }
+    
+    lightTexture = gl.createTexture();
+    lightImage = new Image();
+    lightImage.onload = function() { handleTextureLoaded(lightImage, lightTexture); }
+    
+    darkTexture = gl.createTexture();
+    darkImage = new Image();
+    darkImage.onload = function() { handleTextureLoaded(darkImage, darkTexture); }
+    
+    refractTexture = gl.createTexture();
+    refractImage = new Image();
+    refractImage.onload = function() { handleTextureLoaded(refractImage, refractTexture); }
+    
+    reflectTexture = gl.createTexture();
+    reflectImage = new Image();
+    reflectImage.onload = function() { handleTextureLoaded(reflectImage, reflectTexture); }
+    
+    alphaTexture = gl.createTexture();
+    alphaImage = new Image();
+    alphaImage.onload = function() { handleTextureLoaded(alphaImage, alphaTexture); }
+    
+
+    heightFieldTexture = gl.createTexture();
+    heightFieldImage = new Image();
+    heightFieldImage.onload = function() { handleTextureLoaded(heightFieldImage, heightFieldTexture); }
+
+    envLightTexture = gl.createTexture();
+    envLightImage = new Image();
+    envLightImage.onload = function() { handleTextureLoaded(envLightImage, envLightTexture); }
+}
+
+function handleTextureLoaded(image, texture) {
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    //gl.bindTexture(gl.TEXTURE_2D, 0);
+    
+}
+
+
+function render() {
+    gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+    var lightsOnlyElem = $ ('#lightsOnlySelect:checked');
+    lightsOnly = (lightsOnlyElem.val())?1:0;
+
+    var checkFresnelElem = $('#checkFresnelSelect:checked');
+    checkFresnel = (checkFresnelElem.val())?1:0;
+
+    var useEnvMapElem = $('#useEnvMapSelect:checked');
+    useEnvMap = (useEnvMapElem.val())?1:0;
+
+    for (var i = 0; i < lightNum ; i++)
+    {
+        var checkboxName_showDiffuse = '#lightPanel' + i + ' #diffuseSelect:checked';
+        var showDiffuseElem = $(checkboxName_showDiffuse);
+        showDiffuse[i] = (showDiffuseElem.val())?1:0;
+        
+        var checkboxName_showSpec = '#lightPanel' + i + ' #specSelect:checked';
+        var showSpecElem = $(checkboxName_showSpec);
+        showSpec[i] = (showSpecElem.val())?1:0;
+        
+    }
+    
+    gl.uniform1i(currentLightLoc, currentLight);
+    gl.uniform1f(lightNumLoc, lightNum);
+
+    gl.uniform2fv(mouseLoc, flatten(mouseXY));//use flatten() to extract data from JS Array, send it to WebGL functions
+    
+    gl.uniform1i(lightsOnlyLoc, lightsOnly);
+    gl.uniform3fv(lightColorLoc, lightColor);
+    gl.uniform3fv(baseColorLoc, baseColor);
+    gl.uniform1fv(lightIntensityLoc, lightIntensity);
+    
+    gl.uniform1iv(showDiffuseLoc, showDiffuse);
+    gl.uniform1iv(showSpecLoc, showSpec);
+    gl.uniform1fv(pointLightDisLoc, pointLightDis);
+    gl.uniform1fv(pointLightDecayLoc, pointLightDecay);
+    
+    gl.uniform1f(styleBrightLoc, styleBright);
+    gl.uniform1f(styleDarkLoc, styleDark);
+    gl.uniform1f(highlightALoc, highlightA);
+    gl.uniform1f(highlightBLoc, highlightB);
+    gl.uniform1f(alphaRLoc, alphaR);
+    gl.uniform1f(alphaGLoc, alphaG);
+    gl.uniform1f(alphaBLoc, alphaB);
+    
+    gl.uniform1f(logIORLoc, logIOR);
+    gl.uniform1f(BGdisLoc, BGdis);
+    gl.uniform1f(FGdisLoc, FGdis);
+    gl.uniform1i(reflMapLoc, reflMap);
+    gl.uniform1f(FGshiftXLoc, FGshiftX);
+    gl.uniform1f(FGshiftYLoc, FGshiftY);
+    gl.uniform1f(FGscaleXLoc, FGscaleX);
+    gl.uniform1f(FGscaleYLoc, FGscaleY);
+
+    gl.uniform1f(fresnelIntensityLoc, fresnelIntensity);
+    gl.uniform1f(fresnelBLoc, fresnelB);
+    gl.uniform1f(fresnelCLoc, fresnelC);
+    gl.uniform1i(checkFresnelLoc, checkFresnel);
+
+    gl.uniform1f(hLightDistanceLoc, hLightDistance);
+    gl.uniform1f(hLightIntensityLoc, hLightIntensity);
+    gl.uniform1f(hLightBackLoc, hLightBack);
+    gl.uniform1i(useEnvMapLoc, useEnvMap);
+
+    gl.drawArrays( gl.TRIANGLES, 0, numVertices );
+
+
+    requestAnimFrame(render);
+
+    if( capturer )
+    capturer.capture( document.getElementById( "gl-canvas" ) );
+
+}
+
+
+
+function quad(a, b, c, d) {
+
+    var vertices = [
+        vec4(-1.0, -1.0, 1.0, 1.0),
+        vec4(-1.0, 1.0, 1.0, 1.0),
+        vec4(1.0, 1.0, 1.0, 1.0),
+        vec4(1.0, -1.0, 1.0, 1.0),
+        vec4(-1.0, -1.0, -1.0, 1.0),
+        vec4(-1.0, 1.0, -1.0, 1.0),
+        vec4(1.0, 1.0, -1.0, 1.0),
+        vec4(1.0, -1.0, -1.0, 1.0)
+        ];
+
+    var vertexColors = [
+        [0.0, 0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0, 1.0],
+        [1.0, 1.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0, 1.0],
+        [0.5, 0.5, 1.0, 1.0],
+        [1.0, 0.0, 1.0, 1.0],
+        [0.0, 1.0, 1.0, 1.0],
+        [1.0, 1.0, 1.0, 1.0]
+        ];
+
+    var faceNormal = cross(subtract(vertices[a],vertices[b]), subtract(vertices[c],vertices[b]));
+
+    var vertexTexCoords = [
+        vec2(0.0, 0.0),
+        vec2(1.0, 0.0),
+        vec2(1.0, 1.0),
+        vec2(0.0, 1.0)
+    ];
+
+    texCoords.push(vertexTexCoords[0] );
+    texCoords.push(vertexTexCoords[3] );
+    texCoords.push(vertexTexCoords[2] );
+    texCoords.push(vertexTexCoords[0] );
+    texCoords.push(vertexTexCoords[2] );
+    texCoords.push(vertexTexCoords[1] );
+
+    var indices = [a, b, c, a, c, d];
+    for(var i = 0; i < indices.length; ++i) {
+        points.push(vertices[indices[i]] );
+
+        // for vertex colors use
+        //colors.push(vertexColors[indices[i]] );
+ 
+        // for solid colored faces use
+        colors.push(vertexColors[a] );
+
+        normals.push(faceNormal);
+    }
+}
+
+function getArray()
+{
+    var harray = new Array(5);
+    for (var i=0; i<5; i++)
+    {
+        harray[i] = new Array(5);
+        for ( var j=0; j<5; j++)
+        {
+            harray[i][j] = [i, j, i+j, 0];
+        }
+        
+    }
+    printArray(harray);
+    return harray;
+}
+
+function height_recursive(ncanvas, harray, x, y, maxh, minh)
+{
+    var xData = ncanvas.getContext('2d').getImageData(x, y, 1, 1).data;
+    var h = (2 * xData[0]/255 - 1) + (2 * xData[1]/255 -  1);
+    if ( x < 0 || y < 0)
+    {
+        /*if ( x==0 && y==0)
+        {
+            console.log(JSON.stringify(harray));
+            console.log("Max: " + String(maxh));
+            console.log("Min: " + String(minh));
+        }
+*/        return;
+    }
+    ht = h + height(ncanvas, harray, x, y-1, maxh, minh) + height(ncanvas, harray, x-1, y, maxh, minh);
+    harray[x][y] = ht;
+    if (minh > ht) minh = ht;
+    if (maxh < ht) maxh = ht;
+}
+
+function checkColors()
+{
+    var img = new Image();
+    image3.src = '/home/sharan/691/mock3D/images/normal_teapot.png';
+    img.src = image3.src;
+
+    var ncanvas = document.createElement('canvas');
+    ncanvas.width = img.width;
+    ncanvas.height = img.height;
+    ncanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+    var h = 0;
+    setTimeout(function() {
+        for(var x=0; x<img.width; x++) // Loop order change gives same results
+        {
+            for ( var y = img.height-1; y>=0; y--)
+            {
+                if(x < img.width/2 && y < img.height/2) h=0;
+                if(x >= img.width/2 && y < img.height/2) h=0.25;
+                if(x < img.width/2 && y >= img.height/2) h=0.65;
+                if(x >= img.width/2 && y >= img.height/2) h=1;
+                var heightData = ncanvas.getContext('2d').createImageData(1, 1, x, y);
+                heightData.data[0] = h * 255;
+                heightData.data[1] = h * 255;
+                heightData.data[2] = h * 255;
+                heightData.data[3] = 255;
+                ncanvas.getContext('2d').putImageData(heightData,x, y);
+            }
+        }
+    window.open(ncanvas.toDataURL('image/png'));
+    }, 2000);
+
+}
+
+function height()
+{
+
+    var img = new Image();
+    image3.src = '/home/sharan/691/mock3D/images/chamelon1.png';
+    img.src = image3.src;
+
+    var ncanvas = document.createElement('canvas');
+    ncanvas.width = img.width;
+    ncanvas.height = img.height;
+    ncanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+
+    var harray = new Array(img.width);
+    var harray1 = new Array(img.width);
+    for(var i=0;i < img.width; i++)
+    {
+        harray[i] = new Array(img.height);
+        harray1[i] = new Array(img.height);
+    }
+
+    var hcanvas = document.createElement('canvas');
+    hcanvas.width = img.width;
+    hcanvas.height = img.height;
+    hcanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+
+    var maxh = -10000.0, minh = 10000.0;
+    var dx = 0, dy = 0, dz = 0;
+    var hx = 0.0, hy = 0.0, ht = 0.0;
+    var hData, xData, yData, aData;
+    var ai  = -1.0, bi = -1.0, ci = -1.0, di = -1.0;
+
+    for(var x=0; x<img.width; x++) // Loop order change gives same results
+    {
+        for (var y = img.height-1; y>=0; y--)
+        {
+            if (x > 0)
+            {
+                xData = ncanvas.getContext('2d').getImageData(x-1, y, 1, 1).data;
+                dx = (2 * xData[0]/255 - 1);
+
+                dz = (2 * xData[2]/255 - 1);
+                //if (dz !=0) dx = dx/dz;
+
+                hx = harray[x-1][y];
+            }
+            else
+            {
+                dx = 0.0;
+                hx = 0.0;
+            }
+
+            if (y < img.height-1)
+            {
+                yData = ncanvas.getContext('2d').getImageData(x, y+1, 1, 1).data;
+                dy = (2 * yData[1]/255 - 1);
+
+                dz = (2 * yData[2]/255 - 1);
+                //if (dz !=0) dy = dy/dz;
+
+                hy = harray[x][y+1];
+            }
+            else
+            {
+                dy = 0.0;
+                hy = 0.0;
+            }
+
+
+            ht = ((hx + hy) -  (dx + dy))/2.0;
+
+            aData = ncanvas.getContext('2d').getImageData(x, y, 1, 1).data;
+            ai = 2 * aData[0]/255 - 1, bi = 2 * aData[1]/255 - 1, ci = 2 * aData[2]/255 - 1, di = 2 * aData[3]/255 - 1;
+           if (di > -1.0)
+                harray[x][y] = ht;
+            else
+                harray[x][y] = 0;
+            if (minh > ht) minh = ht;
+            if (maxh < ht) maxh = ht;
+        }
+    }
+    console.log("Alpha: "+String(ai) + " " + String(bi) + " " + String(ci) + " " + String(di));
+
+
+    for(var x = img.width-1; x >= 0; x--) // Loop order change gives same results
+    {
+        for (var y = img.height - 1; y >= 0; y--)
+        {
+            if (x < img.width - 1)
+            {
+                xData = ncanvas.getContext('2d').getImageData(x+1, y, 1, 1).data;
+                dx = (2 * xData[0]/255 - 1);
+
+                dz = (2 * xData[2]/255 - 1);
+                //if (dz !=0) dx = dx/dz;
+
+                hx = harray1[x+1][y];
+            }
+            else
+            {
+                dx = 0.0;
+                hx = 0.0;
+              }
+
+            if (y < img.height - 1)
+            {
+                yData = ncanvas.getContext('2d').getImageData(x, y+1, 1, 1).data;
+                dy = -(2 * yData[1]/255 - 1);
+
+                dz = (2 * yData[2]/255 - 1);
+                //if (dz !=0) dy = dy/dz;
+
+                hy = harray1[x][y+1];
+            }
+            else
+            {
+                dy = 0.0;
+                hy = 0.0;
+            }
+
+
+            ht = ((hx + hy) + (dx + dy))/2.0;
+
+            aData = ncanvas.getContext('2d').getImageData(x, y, 1, 1).data;
+            ai = 2 * aData[0]/255 - 1, bi = 2 * aData[1]/255 - 1, ci = 2 * aData[2]/255 - 1, di = 2 * aData[3]/255 - 1;
+            if (di > -1.0)
+                harray1[x][y] = ht;
+            else
+                harray1[x][y] = 0;
+            if (minh > ht) minh = ht;
+            if (maxh < ht) maxh = ht;
+        }
+    }
+
+    console.log(JSON.stringify(harray));
+    console.log("Max: " + String(maxh));
+    console.log("Min: " + String(minh));
+
+    setTimeout(function() {
+
+        for(var i = 0; i<img.height; i++)
+        {
+            for(var j=0; j<img.width; j++) // Any order for for loop. Doesn't matter here
+            {
+                var alpha = 0;
+                var h = (harray1[i][j]);// + harray1[i][j])/2.0;
+                //var h = harray[i][j] > harray1[i][j] ? harray1[i][j] : harray[i][j];
+                //var h = (harray1[i][j]);
+                h = (h-minh)/((maxh-minh));
+
+                aData = ncanvas.getContext('2d').getImageData(i, j, 1, 1).data;
+                ai = 2 * aData[0]/255 - 1, bi = 2 * aData[1]/255 - 1, ci = 2 * aData[2]/255 - 1, di = 2 * aData[3]/255 - 1;
+                if (di > -1) alpha = 1; // Change alpha to 1 if not transparent
+                var heightData = hcanvas.getContext('2d').createImageData(1, 1, i, j);
+                heightData.data[0] = h * 255;
+                heightData.data[1] = h * 255;
+                heightData.data[2] = h * 255;
+                heightData.data[3] = alpha * 255;
+
+                hcanvas.getContext('2d').putImageData(heightData,i, j);
+            }
+        }
+
+    window.open(hcanvas.toDataURL('image/png'));
+    }, 2000);
+}
+
+function normalizeHeight()
+{
+
+    var img = new Image();
+    image3.src = '/home/sharan/691/mock3D/images/ht_teapot.png';
+    img.src = image3.src;
+
+    var ncanvas = document.createElement('canvas');
+    ncanvas.width = img.width;
+    ncanvas.height = img.height;
+    ncanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+
+    var harray = new Array(img.height);
+
+    var hcanvas = document.createElement('canvas');
+    hcanvas.width = img.width;
+    hcanvas.height = img.height;
+    hcanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+
+    var maxh = -10000.0, minh = 10000.0;
+    var ht = 0.0;
+    var hData;
+
+    for(var i = 0; i<img.height; i++)
+    {
+        harray[i] = new Array(img.width);
+        for(var j=0; j<img.width; j++) // Any order for for loop. Doesn't matter here
+        {
+            hData = ncanvas.getContext('2d').getImageData(i, j, 1, 1).data;
+            ht = (2 * hData[0]/255 - 1);
+            harray[i][j] = ht;
+            if (minh > ht) minh = ht;
+            if (maxh < ht) maxh = ht;
+        }
+    }
+
+    setTimeout(function() {
+
+    for(var i = 0; i<img.height; i++)
+    {
+        for(var j=0; j<img.width; j++) // Any order for for loop. Doesn't matter here
+        {
+            var h = harray[i][j];
+            h = (h-minh)/((maxh-minh));
+
+            var heightData = hcanvas.getContext('2d').createImageData(1, 1, i, j);
+            heightData.data[0] = h * 255;
+            heightData.data[1] = h * 255;
+            heightData.data[2] = h * 255;
+            heightData.data[3] = 255;
+
+            hcanvas.getContext('2d').putImageData(heightData,i, j);
+        }
+    }
+
+    window.open(hcanvas.toDataURL('image/png'));
+    }, 2000);
+}
+function printArray(arr)
+{
+    for(var i=0; i<5; i++)
+    {
+        var str = "";
+        for(var j=0; j<5; j++)
+        {
+            str = JSON.stringify(arr[i][j])
+        }
+        console.log(str)
+    }
+}
+
+function setXYHeight()
+{
+   var img = new Image();
+   image3.src = '/home/sharan/691/mock3D/images/normal2.png';
+   img.src = image3.src;
+
+   var ncanvas = document.createElement('canvas');
+   ncanvas.width = img.width;
+   ncanvas.height = img.height;
+   ncanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+
+   var hcanvas = document.createElement('canvas');
+   hcanvas.width = img.width;
+   hcanvas.height = img.height;
+   hcanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+   var xh = 0.0, yh = 0.0;
+   var dx = 0.0, dy = 0.0, dxy = 0.0;
+   var maxh = -100.0, minh = 100.0;
+   var arrhx = new Array(img.height);
+   setTimeout(function() {
+
+        for(var j = 0; j<img.height; j++)
+        {
+            xh = yh;
+            arrhx[j] = new Array(img.width);
+            //maxh = -100.0, minh = 100.0; 
+            for(var i=0; i<img.width; i++)
+            {
+                var xData = ncanvas.getContext('2d').getImageData(i, j, 1, 1).data;
+                dx = 2 * xData[0]/255 - 1;
+                dxy = 2 * xData[1]/255 -  1;
+                xh = xh - (dx + dxy);
+                if (minh > xh) minh = xh;
+                if (maxh < xh) maxh = xh;
+                arrhx[j][i] = xh;
+                if (j==80)
+                    console.log("W: " + i + " R: " + xData[0] + " H: " + xh);
+            }
+
+            var yData = ncanvas.getContext('2d').getImageData(0, j, 1, 1).data;
+            dy = 2 * yData[1]/255 - 1;
+            yh = yh - dy;
+            if (minh > yh) minh = yh;
+            if (maxh < yh) maxh = yh;
+            /*for(var i=0; i<img.width; i++) // Any order for for loop. Doesn't matter here
+            {
+                var hx = (arrhx[j][i]-minh)/(maxh-minh);
+                arrhx[j][i] = hx;
+            }*/
+        }
+
+        for(var j = 0; j<img.height; j++)
+        {
+            for(var i=0; i<img.width; i++) // Any order for for loop. Doesn't matter here
+            {
+                //var h = (arrhx[j][i]-minh)/(maxh-minh);
+                var h = arrhx[j][i];
+                var heightData = hcanvas.getContext('2d').createImageData(1, 1, i, j);
+                heightData.data[0] = h * 255;
+                heightData.data[1] = h * 255;
+                heightData.data[2] = h * 255;
+                heightData.data[3] = 255;
+
+                hcanvas.getContext('2d').putImageData(heightData,i, j);
+            }
+        }
+
+        window.open(hcanvas.toDataURL('image/png'));
+        }, 2000);
+}
+
+
+function getNormalSample(i, j, width, height, arrx)
+{
+    var sample = 3, numsamples = 0;
+    var sampled_ai = 0;
+    for(var x = i-1; x <= i + 1; x++)
+    {
+        for (var y = j-1; y <= j + 1; y++)
+        {
+            if ( x >= 0 && y >= 0 && x < width && y < height)
+            {
+                //var pData = arrx[x][y];
+                var ai = arrx[y][x];//2 * pData[0]/255 - 1;
+                sampled_ai = sampled_ai + ai;
+                numsamples++;
+            }
+        }
+    }
+    sampled_ai = sampled_ai/numsamples;
+    return sampled_ai;
+}
+
+function setColors1()
+{
+   var img = new Image();
+   image3.src = '/home/sharan/691/mock3D/images/normal_test2.png';
+   img.src = image3.src;
+
+   var ncanvas = document.createElement('canvas');
+   ncanvas.width = img.width;
+   ncanvas.height = img.height;
+   ncanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+
+   var hcanvas = document.createElement('canvas');
+   hcanvas.width = img.width;
+   hcanvas.height = img.height;
+   hcanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+   var xh = 0.0;
+   var maxhx = -100.0, minhx = 100.0;
+   var arrhx = new Array(img.height);
+   setTimeout(function() {
+        //var canvas = document.getElementById( "gl-canvas" );
+        //var gl = canvas.getContext('webgl', {preserveDrawingBuffer: true});
+        var fb = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, normalTexture, 0);
+        var pixels = new Uint8Array(ncanvas.width * ncanvas.height * 4);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE) {
+          gl.readPixels(0, 0, ncanvas.width, ncanvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        }
+        console.log(pixels);
+
+        var xHeight, xi;
+        var r,g,b,a;
+
+        var k = pixels.length - 1;
+        for(var j = 0; j<img.height; j++)
+        {
+            xHeight = 0.0;
+            arrhx[j] = new Array(img.width);
+            for(var i=0; i<img.width; i++)
+            {
+                //var pixelData = new Array(4);
+                a = pixels[k--];
+                b = pixels[k--];
+                g = pixels[k--];
+                r = pixels[k--];
+                alert("R: " + r + " G: " + g + " B: " + b + " A: " + a);
+                xi = 2 * r/255.0 - 1;
+                xHeight = xHeight - xi;
+                if (minhx > xHeight) minhx = xHeight;
+                if (maxhx < xHeight) maxhx = xHeight;
+                arrhx[j][i] = xHeight;
+            }
+        };
+        k = pixels.length - 1;
+        for(var j = 0; j<img.height; j++)
+        {
+            for(var i=0; i<img.width; i++)
+            {
+                var imageData = hcanvas.getContext('2d').createImageData(1, 1, i, j);
+                var hx = (arrhx[j][i]-minhx)/(maxhx-minhx);
+                imageData.data[3] = 255;
+                imageData.data[2] = hx*255;
+                imageData.data[1] = hx*255;
+                imageData.data[0] = hx*255;
+                
+                hcanvas.getContext('2d').putImageData(imageData,i, j);
+            }
+        };
+        window.open(hcanvas.toDataURL('image/png'));
+        }, 2000);
+}
+
+function setColors()
+{
+   var img = new Image();
+   image3.src = '/home/sharan/691/mock3D/images/normal.png';
+   img.src = image3.src;
+
+   var ncanvas = document.createElement('canvas');
+   ncanvas.width = img.width;
+   ncanvas.height = img.height;
+   ncanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+
+   var hcanvas = document.createElement('canvas');
+   hcanvas.width = img.width;
+   hcanvas.height = img.height;
+   hcanvas.getContext('2d').drawImage(img, 0, 0, img.width, img.height);
+   var xh = 0.0;
+   var maxhx = -100.0, minhx = 100.0;
+   var arrhx = new Array(img.height);
+   setTimeout(function() {
+
+        for(var j = 0; j<img.height; j++)
+        {
+            xh = 0.0;
+            arrhx[j] = new Array(img.width);
+            //maxhx = -100.0, minhx = 100.0;
+            for(var i=0; i<img.width; i++)
+            {
+                var pData = ncanvas.getContext('2d').getImageData(i, j, 1, 1).data;
+                var xi = 2 * pData[0]/255 - 1;
+                xh = xh - xi;
+                if (minhx > xh) minhx = xh;
+                if (maxhx < xh) maxhx = xh;
+                arrhx[j][i] = xh;
+                if (j==80)
+                    console.log("W: " + i + " R: " + pData[0] + " H: " + xh);
+            }
+
+            /*for(var i=0; i<img.width; i++) // Any order for for loop. Doesn't matter here
+            {
+                var hx = (arrhx[j][i]-minhx)/(maxhx-minhx);
+                arrhx[j][i] = hx;
+            }*/
+        }
+
+        for(var j = 0; j<img.height; j++)
+        {
+            for(var i=0; i<img.width; i++) // Any order for for loop. Doesn't matter here
+            {
+                var hx = (arrhx[j][i]-minhx)/(maxhx-minhx);
+                //var hx = arrhx[j][i];
+                var heightData = hcanvas.getContext('2d').createImageData(1, 1, i, j);
+                heightData.data[0] = hx*255;
+                heightData.data[1] = hx*255;
+                heightData.data[2] = hx*255;
+                heightData.data[3] = 255;
+
+                hcanvas.getContext('2d').putImageData(heightData,i, j);
+            }
+        }
+
+        window.open(hcanvas.toDataURL('image/png'));
+        }, 2000);
+}
+
+function setHeightField()
+{
+   // Canvas 0 - normal image; canvas 1 - height field image
+   var normalImg = new Image();
+   image3.src = '/home/sharan/691/mock3D/images/normal5.png';//'/home/sharan/691/mock3D/images/Escher/handWithSphere/shape.png';
+   normalImg.src = image3.src;
+   var canvas0 = document.createElement('canvas');
+   canvas0.width = normalImg.width;
+   canvas0.height = normalImg.height;
+   canvas0.getContext('2d').drawImage(normalImg, 0, 0, normalImg.width, normalImg.height);
+   
+   var canvas1 = document.createElement('canvas');
+   canvas1.width = normalImg.width;
+   canvas1.height = normalImg.height;
+   canvas1.getContext('2d').drawImage(normalImg, 0, 0, normalImg.width, normalImg.height);
+   
+   var canvas2 = document.createElement('canvas');
+   canvas2.width = normalImg.width;
+   canvas2.height = normalImg.height;
+   canvas2.getContext('2d').drawImage(normalImg, 0, 0, normalImg.width, normalImg.height);
+
+   var xi=0, yi=0, zi=0;
+   var dx=1, dy=0, dz=0;
+   var delta=0.5;
+   var mult=1;
+   var maxHx = 0, maxHy = 0;
+   var minHx = 1, minHy = 1;
+   var minHz = 1, maxHz = 0;
+   var minH = 1, maxH = 0;
+   var arrx = new Array(normalImg.height);
+   var arrz = new Array(normalImg.height);
+   var arry = new Array(normalImg.width);
+   var ai1 = 0;
+   setTimeout(function() {
+                // Calculate in x direction
+              for(var j = 0; j<normalImg.height; j++)
+              {
+               xi = 0;
+               arrx[j] = new Array(normalImg.width);
+               arrz[j] = new Array(normalImg.width);
+               var div = 0;
+         
+              for(var i=0; i<normalImg.width; i++)
+              {
+              //var noise = Math.floor((Math.random() * -1) + 1);
+              var pData = canvas0.getContext('2d').getImageData(i, j, 1, 1).data;
+              var ai = 2 * pData[0]/255 - 1, bi = 2 * pData[1]/255 - 1, ci = 2 * pData[2]/255 - 1;
+
+                //if (ci >= 0 && ci <= 1)
+              // {
+                    div = ai/(ci + 1.0);
+               // }
+                    
+              if (pData[3] > 0)
+                  xi = xi - div;
+        
+              // Find the maximum height in the image
+              if(maxHx<xi)
+               maxHx = xi;
+              // Find the minimum height in the image
+              if(minHx>xi)
+               minHx = xi;           
+            
+               // if (-0.5>xi)
+                   //arrx[j][i] = -0.5;
+              //else
+              arrx[j][i] = xi;
+
+              }
+              }
+              alert("Min HX: " + minHx + " MAX HX: " +maxHx);
+             // minHx = -0.5;
+                // Calculate in y direction
+              for(var i = 0; i<normalImg.width; i++)
+              {
+               xi = 0; yi = 0; zi=0;
+               var div = 0;
+               arry[i] = new Array(normalImg.height);
+              for(var j=normalImg.height-1; j>=0; j--)
+              {
+
+              var pData = canvas0.getContext('2d').getImageData(i, j, 1, 1).data;
+              var ppData = canvas0.getContext('2d').getImageData(i, j+1, 1, 1).data;
+
+              var ai = 2 * pData[0]/255 - 1, bi = 2 * pData[1]/255 - 1, ci = 2 * pData[2]/255 - 1;
+
+              var mag = ai * ai + bi * bi + ci * ci;
+              
+              mag = Math.sqrt(mag);
+
+                //if (ci >= 0 && ci <= 1)
+                    div = bi;///(ci + 1.0);
+
+              if (pData[3] > 0)
+                yi = yi - div;
+
+              
+              // Find the maximum height in the image
+              if(maxHy<yi)
+               maxHy = yi;
+              // Find the minimum height in the image
+              if(minHy>yi)
+               minHy = yi;
+
+              arry[i][j] = yi;
+
+              }
+              }
+            
+              var zHx = 0, zHy = 0;
+                //Scale the y direction from 0 to 1 based on max and min y height 
+              for(var i = 0; i<normalImg.width; i++)
+              {
+              for(var j=normalImg.height; j>=0; j--)
+              {
+              // scaling from 0 to 1
+              zHy = arry[i][j]-minHy; // add the |minimum height| to all values so the height starts from 0
+              zHy = zHy/(maxHy-minHy); // divide by maxHeight + |minHeight| to scale it to 1
+              if(zHy > 1 || zHy < 0)
+              {
+                alert(zHy);
+                zHy = 1;
+              }
+
+              arry[i][j] = zHy;
+              }
+              }
+ 
+                
+                var n = normalImg.width;
+                for (var slice = 0; slice < 2 * n-1; ++slice) {
+                    var div = 0;
+                    zi = 0;
+                    var z = slice < n ? 0 : slice - n + 1;
+                    for (var j = z; j <= slice - z; ++j) {
+                        var pData = canvas0.getContext('2d').getImageData(j, slice - j, 1, 1).data;
+                        var ai = 2 * pData[0]/255 - 1, bi = 2 * pData[1]/255 - 1, ci = 2 * pData[2]/255 - 1;
+
+                        //if (ci >= 0 && ci <= 1)
+                        //{
+                            div = (ai + bi)/(2.0);// * (ci + 1.0));
+                        //}
+                            
+                      if (pData[3] > 0)
+                          zi = zi - div;
+                      ai1 = ai;
+                      // Find the maximum height in the image
+                      if(maxHz<zi)
+                       maxHz = zi;
+                      // Find the minimum height in the image
+                      if(minHz>zi)
+                       minHz = zi;  
+                       if (-0.5>zi)
+                       zi=-0.5;        
+
+                      arrz[j][slice-j] = zi;
+                    }
+                }
+
+
+                // Scale the x direction from 0 to 1 based on max and min x height and
+                // write it to canvas
+              for(var i=0; i<normalImg.width; i++) // Any order for for loop. Doesn't matter here
+              {
+
+              for(var j = 0; j<normalImg.height; j++)
+              {
+              var pData = canvas1.getContext('2d').getImageData(i, j, 1, 1).data;
+              var heightData = canvas2.getContext('2d').createImageData(1, 1, i, j);
+
+              // scaling from 0 to 1
+              //var sampled = getNormalSample(i, j, normalImg.width, normalImg.height, arrx);
+              zHx = arrx[j][i] - minHx; // add the |minimum height| to all values so the height starts from 0
+              zHx = zHx/(maxHx-minHx); // divide by maxHeight + |minHeight| to scale it to 1
+
+              //zHy = arry[i][j];
+
+              if(zHx > 1 || zHx < 0)
+              {
+                alert(zHx);
+                zHx = 1;
+              }
+
+              zHz = arrz[j][i] - minHz; // add the |minimum height| to all values so the height starts from 0
+              zHz = zHz/(maxHz - minHz); // divide by maxHeight + |minHeight| to scale it to 1
+
+              zHy = arry[i][j];
+
+              if(zHz > 1 || zHz < 0)
+              {
+                alert(zHz);
+                zHz = 1;
+              }
+
+              // If transparent, make the values 0
+              if (pData[3] == 0)
+              {
+                zHx = 0;
+                zHy = 0;
+                zHz = 0;
+              }
+              arrx[j][i] = zHx;
+              arry[i][j] = zHy;
+              arrz[j][i] = zHz;
+              var avg = (zHx+zHy)/2.0;
+              heightData.data[0]=arrx[j][i] * 255;
+              heightData.data[1]=arrx[j][i] * 255;;//arry[i][j] * 255;
+              heightData.data[2]=arrx[j][i] * 255;;//arrz[j][i] * 255;
+              heightData.data[3]=pData[3];
+
+              canvas2.getContext('2d').putImageData(heightData,i, j);
+              }
+              }
+
+              window.open(canvas2.toDataURL('image/png'));
+              }, 5000);
+}
+
+function colorCube() {
+    quad(1, 0, 3, 2);
+    quad(2, 3, 7, 6);
+    quad(3, 0, 4, 7);
+    quad(6, 5, 1, 2);
+    quad(4, 5, 6, 7);
+    quad(5, 4, 0, 1);
+}
